@@ -100,8 +100,113 @@ RULES:
 - Assign confidence scores: 1.0 = explicitly stated, 0.8 = strongly implied, 0.5-0.7 = inferred from context, <0.5 = uncertain.
 - For priority: high = mentioned as urgent/blocking/deadline-sensitive. medium = important but not blocking. low = nice-to-have or background task.
 - If someone says "I'll do X by Friday" — that's an action item with owner and deadline.
+- For deadline, use an empty string "" when no deadline is mentioned.
 - If a question is asked and not answered in the transcript, it's an open question.
 - Be exhaustive. Missing an action item is worse than including a low-confidence one."""
+
+
+# Strict JSON schema for Anthropic structured outputs (output_config). Derived
+# from exactly the fields the downstream formatter/HubSpot/summary code reads.
+EXTRACTION_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "meeting_title",
+        "meeting_date",
+        "attendees",
+        "decisions",
+        "action_items",
+        "open_questions",
+        "key_insights",
+        "follow_up_meetings",
+    ],
+    "properties": {
+        "meeting_title": {"type": "string"},
+        "meeting_date": {"type": "string"},
+        "attendees": {"type": "array", "items": {"type": "string"}},
+        "decisions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["decision", "made_by", "context", "confidence"],
+                "properties": {
+                    "decision": {"type": "string"},
+                    "made_by": {"type": "string"},
+                    "context": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+            },
+        },
+        "action_items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "action",
+                    "owner",
+                    "deadline",
+                    "priority",
+                    "is_implicit",
+                    "source_quote",
+                    "confidence",
+                ],
+                "properties": {
+                    "action": {"type": "string"},
+                    "owner": {"type": "string"},
+                    "deadline": {"type": "string"},
+                    "priority": {"type": "string"},
+                    "is_implicit": {"type": "boolean"},
+                    "source_quote": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+            },
+        },
+        "open_questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["question", "raised_by", "context", "confidence"],
+                "properties": {
+                    "question": {"type": "string"},
+                    "raised_by": {"type": "string"},
+                    "context": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+            },
+        },
+        "key_insights": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["insight", "speaker", "quote", "confidence"],
+                "properties": {
+                    "insight": {"type": "string"},
+                    "speaker": {"type": "string"},
+                    "quote": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+            },
+        },
+        "follow_up_meetings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["topic", "suggested_attendees", "urgency", "confidence"],
+                "properties": {
+                    "topic": {"type": "string"},
+                    "suggested_attendees": {"type": "array", "items": {"type": "string"}},
+                    "urgency": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+            },
+        },
+    },
+}
 
 
 def call_llm(prompt: str, system_prompt: str = "") -> str:
@@ -125,6 +230,7 @@ def call_llm(prompt: str, system_prompt: str = "") -> str:
                 max_tokens=4096,
                 system=system_prompt,
                 messages=[{"role": "user", "content": prompt}],
+                output_config={"format": {"type": "json_schema", "schema": EXTRACTION_SCHEMA}},
             )
             return message.content[0].text
         except ImportError:
@@ -198,8 +304,6 @@ def extract_from_transcript(transcript: str) -> dict:
 
     prompt = f"""Extract all decisions, action items, open questions, key insights, and follow-up meetings from this meeting transcript.
 
-Return ONLY valid JSON matching the schema in your instructions.
-
 ---
 TRANSCRIPT:
 {transcript}
@@ -207,29 +311,21 @@ TRANSCRIPT:
 
     raw_response = call_llm(prompt, system_prompt=EXTRACTION_SYSTEM_PROMPT)
 
-    # Parse JSON from response (handle potential markdown wrapping)
+    # Structured outputs guarantees schema-valid JSON for the Anthropic path.
+    # (The OpenAI path uses json_object mode, and the fallback emits valid JSON.)
     try:
-        # Try direct parse first
         return json.loads(raw_response)
     except json.JSONDecodeError:
-        # Try to extract JSON from markdown code block
-        if "```json" in raw_response:
-            json_str = raw_response.split("```json")[1].split("```")[0].strip()
-            return json.loads(json_str)
-        elif "```" in raw_response:
-            json_str = raw_response.split("```")[1].split("```")[0].strip()
-            return json.loads(json_str)
-        else:
-            print("Error: Could not parse LLM response as JSON.", file=sys.stderr)
-            return {
-                "meeting_title": "Parse Error",
-                "decisions": [],
-                "action_items": [],
-                "open_questions": [],
-                "key_insights": [],
-                "follow_up_meetings": [],
-                "_error": f"Failed to parse LLM response. Raw: {raw_response[:500]}",
-            }
+        print("Error: Could not parse LLM response as JSON.", file=sys.stderr)
+        return {
+            "meeting_title": "Parse Error",
+            "decisions": [],
+            "action_items": [],
+            "open_questions": [],
+            "key_insights": [],
+            "follow_up_meetings": [],
+            "_error": f"Failed to parse LLM response. Raw: {raw_response[:500]}",
+        }
 
 
 # ---------------------------------------------------------------------------

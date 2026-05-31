@@ -109,10 +109,12 @@ def transcribe_audio(audio_path: str) -> dict:
     }
 
 
-def call_anthropic(system_prompt: str, user_prompt: str, max_tokens: int = 8000) -> str:
+def call_anthropic(system_prompt: str, user_prompt: str, max_tokens: int = 8000,
+                   schema: Optional[dict] = None) -> str:
     """
     Call Anthropic Claude API for content generation.
-    Returns the text response.
+    Returns the text response. When `schema` is provided, the response is
+    constrained to that JSON schema via structured outputs (GA, no beta header).
     """
     if not ANTHROPIC_API_KEY:
         print("ERROR: ANTHROPIC_API_KEY not set. Cannot generate content.", file=sys.stderr)
@@ -122,12 +124,16 @@ def call_anthropic(system_prompt: str, user_prompt: str, max_tokens: int = 8000)
     import anthropic
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    message = client.messages.create(
-        model=ANTHROPIC_MODEL,
-        max_tokens=max_tokens,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
+    create_kwargs = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": max_tokens,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": user_prompt}],
+    }
+    if schema is not None:
+        create_kwargs["output_config"] = {"format": {"type": "json_schema", "schema": schema}}
+
+    message = client.messages.create(**create_kwargs)
     return message.content[0].text
 
 
@@ -310,7 +316,7 @@ You think like a viral content creator: you spot the moments that make people
 stop scrolling, the takes that spark debate, and the insights people screenshot
 and share.
 
-Return your analysis as a JSON array of content atoms."""
+Return your analysis as a structured JSON object."""
 
     user_prompt = f"""Analyze this podcast transcript and extract ALL content atoms.
 
@@ -333,7 +339,7 @@ Extract content atoms in these 7 categories. Find ALL of them — be thorough.
 6. **framework** — Step-by-step processes, mental models. Things people save/bookmark.
 7. **prediction** — Forward-looking claims about trends, markets, tech.
 
-Return ONLY a JSON array. Each atom:
+Return structured JSON: an object with an "atoms" array. Each atom:
 {{
   "type": "narrative_arc|quote|controversial_take|data_point|story|framework|prediction",
   "content": "the extracted text, cleaned up for readability",
@@ -344,25 +350,37 @@ Return ONLY a JSON array. Each atom:
 
 Find at least 15 atoms total. Prioritize quality and shareability."""
 
-    response = call_anthropic(system_prompt, user_prompt, max_tokens=6000)
+    atoms_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["atoms"],
+        "properties": {
+            "atoms": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["type", "content", "timestamp", "context", "suggested_platforms"],
+                    "properties": {
+                        "type": {"type": "string"},
+                        "content": {"type": "string"},
+                        "timestamp": {"type": "string"},
+                        "context": {"type": "string"},
+                        "suggested_platforms": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+            },
+        },
+    }
 
-    # Parse JSON from the response (handle markdown code blocks)
-    json_match = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", response, re.DOTALL)
-    if json_match:
-        atoms = json.loads(json_match.group(1))
-    else:
-        # Try parsing the whole response as JSON
-        try:
-            atoms = json.loads(response)
-        except json.JSONDecodeError:
-            # Last resort: find the JSON array in the response
-            start = response.find("[")
-            end = response.rfind("]") + 1
-            if start >= 0 and end > start:
-                atoms = json.loads(response[start:end])
-            else:
-                print("  WARNING: Could not parse atoms from LLM response. Using empty list.", file=sys.stderr)
-                atoms = []
+    response = call_anthropic(system_prompt, user_prompt, max_tokens=6000, schema=atoms_schema)
+
+    # Structured outputs guarantees schema-valid JSON — read the "atoms" wrapper key.
+    try:
+        atoms = json.loads(response).get("atoms", [])
+    except (json.JSONDecodeError, AttributeError):
+        print("  WARNING: Could not parse atoms from LLM response. Using empty list.", file=sys.stderr)
+        atoms = []
 
     print(f"  Extracted {len(atoms)} content atoms")
     return atoms
@@ -394,7 +412,7 @@ You understand platform-specific best practices:
 - Blog: SEO-optimized, structured with H2s, 1500-2500 words outlined
 - Quote cards: max 20 words, standalone impact
 
-Return ONLY valid JSON."""
+Return a structured JSON object."""
 
     user_prompt = f"""Generate a full content suite from these podcast content atoms.
 
@@ -461,7 +479,7 @@ Generate ALL of the following. Return as a JSON array of content pieces:
    - broll_suggestions: visual ideas
    - source_atoms: which atom indexes
 
-Each piece must include:
+Return structured JSON: an object with a "pieces" array. Each piece:
 {{
   "type": "video_clip|twitter_thread|linkedin_article|newsletter_section|quote_card|blog_outline|short_script",
   "platform": "twitter|linkedin|youtube_shorts|tiktok|newsletter|blog|quote_card",
@@ -470,23 +488,39 @@ Each piece must include:
   "viral_score_estimate": 0-100
 }}"""
 
-    response = call_anthropic(system_prompt, user_prompt, max_tokens=8000)
+    # `content` holds type-specific fields with variable keys, so it stays a
+    # free-form object (additionalProperties allowed). All other fields are fixed.
+    pieces_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["pieces"],
+        "properties": {
+            "pieces": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["type", "platform", "content", "source_atoms", "viral_score_estimate"],
+                    "properties": {
+                        "type": {"type": "string"},
+                        "platform": {"type": "string"},
+                        "content": {"type": "object", "additionalProperties": True},
+                        "source_atoms": {"type": "array", "items": {"type": "integer"}},
+                        "viral_score_estimate": {"type": "integer"},
+                    },
+                },
+            },
+        },
+    }
 
-    # Parse JSON
-    json_match = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", response, re.DOTALL)
-    if json_match:
-        pieces = json.loads(json_match.group(1))
-    else:
-        try:
-            pieces = json.loads(response)
-        except json.JSONDecodeError:
-            start = response.find("[")
-            end = response.rfind("]") + 1
-            if start >= 0 and end > start:
-                pieces = json.loads(response[start:end])
-            else:
-                print("  WARNING: Could not parse content pieces. Using empty list.", file=sys.stderr)
-                pieces = []
+    response = call_anthropic(system_prompt, user_prompt, max_tokens=8000, schema=pieces_schema)
+
+    # Structured outputs guarantees schema-valid JSON — read the "pieces" wrapper key.
+    try:
+        pieces = json.loads(response).get("pieces", [])
+    except (json.JSONDecodeError, AttributeError):
+        print("  WARNING: Could not parse content pieces. Using empty list.", file=sys.stderr)
+        pieces = []
 
     print(f"  Generated {len(pieces)} content pieces")
     return pieces
