@@ -122,24 +122,24 @@ Rules:
 
 Return your answer as structured JSON: an object with a "variants" array of {num_variants} strings."""
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-        output_config={"format": {"type": "json_schema", "schema": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["variants"],
-            "properties": {
-                "variants": {"type": "array", "items": {"type": "string"}},
-            },
-        }}},
-    )
-    # Structured outputs guarantees schema-valid JSON — no fence-stripping/fallback needed.
+    # Structured outputs guarantees schema-valid JSON; any API/schema/parse error fails safe.
     try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {"type": "json_schema", "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["variants"],
+                "properties": {
+                    "variants": {"type": "array", "items": {"type": "string"}},
+                },
+            }}},
+        )
         data = json.loads(response.content[0].text)
         return [str(v) for v in data.get("variants", [])[:num_variants]]
-    except (json.JSONDecodeError, AttributeError):
+    except Exception:
         return []
 
 
@@ -210,16 +210,16 @@ Return your scores as structured JSON: an object with a "scores" array, one entr
         },
     }
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=8192,
-        messages=[{"role": "user", "content": prompt}],
-        output_config={"format": {"type": "json_schema", "schema": score_schema}},
-    )
     try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {"type": "json_schema", "schema": score_schema}},
+        )
         return json.loads(response.content[0].text).get("scores", [])
-    except (json.JSONDecodeError, AttributeError):
-        # Fallback: return empty scores
+    except Exception:
+        # Fail-safe: empty scores on any API/schema/parse error.
         return [{"variant_id": i+1, "text": v, "avg_score": 0} for i, v in enumerate(variants)]
 
 
@@ -330,16 +330,16 @@ Return structured JSON: an object with a "combinations" array of 5 objects, each
         },
     }
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=8192,
-        messages=[{"role": "user", "content": prompt}],
-        output_config={"format": {"type": "json_schema", "schema": combo_schema}},
-    )
     try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=8192,
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {"type": "json_schema", "schema": combo_schema}},
+        )
         combinations = json.loads(response.content[0].text).get("combinations", [])
         return combinations[0] if combinations else {}
-    except (json.JSONDecodeError, AttributeError):
+    except Exception:
         return {}
 
 
