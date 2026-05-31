@@ -37,14 +37,17 @@ CLIPS_DIR = DATA_DIR / "clips"
 DEFAULT_MODEL = os.environ.get("EDITORIAL_BRAIN_MODEL", "claude-sonnet-4-20250514")
 
 
-def call_claude(prompt, model=None, max_tokens=4000):
-    """Call Claude API."""
+def call_claude(prompt, model=None, max_tokens=4000, output_schema=None):
+    """Call Claude API. Pass output_schema to enforce structured JSON output."""
     model = model or DEFAULT_MODEL
-    data = json.dumps({
+    body = {
         "model": model,
         "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}]
-    }).encode()
+    }
+    if output_schema is not None:
+        body["output_config"] = {"format": {"type": "json_schema", "schema": output_schema}}
+    data = json.dumps(body).encode()
 
     req = urllib.request.Request(
         "https://api.anthropic.com/v1/messages",
@@ -178,7 +181,7 @@ What makes a 90+ clip:
 FULL TRANSCRIPT:
 {full_transcript}
 
-Return a JSON array of the best moments (3-5 max). For each:
+Return the best moments (3-5 max) as a "moments" array. For each:
 {{
     "start_timestamp": "[M:SS] exact timestamp from transcript",
     "end_timestamp": "[M:SS] where to cut",
@@ -191,17 +194,42 @@ Return a JSON array of the best moments (3-5 max). For each:
 
 Be EXTREMELY selective. If nothing scores above 70, return fewer moments or an empty array. Quality > quantity."""
 
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["moments"],
+        "properties": {
+            "moments": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "start_timestamp", "end_timestamp", "hook_quote",
+                        "payoff_quote", "why_viral", "estimated_score", "narrative_arc"
+                    ],
+                    "properties": {
+                        "start_timestamp": {"type": "string"},
+                        "end_timestamp": {"type": "string"},
+                        "hook_quote": {"type": "string"},
+                        "payoff_quote": {"type": "string"},
+                        "why_viral": {"type": "string"},
+                        "estimated_score": {"type": "integer"},
+                        "narrative_arc": {"type": "string"},
+                    },
+                },
+            },
+        },
+    }
+
     try:
-        response = call_claude(prompt, max_tokens=3000)
-        json_match = re.search(r'\[[\s\S]*\]', response)
-        if json_match:
-            moments = json.loads(json_match.group())
-            for m in moments:
-                m['hook'] = m.get('hook_quote', m.get('hook', ''))
-                m['payoff'] = m.get('payoff_quote', m.get('payoff', ''))
-                m['suggested_clip_text'] = m.get('narrative_arc', '')
-            return moments
-        return []
+        response = call_claude(prompt, max_tokens=3000, output_schema=schema)
+        moments = json.loads(response).get("moments", [])
+        for m in moments:
+            m['hook'] = m.get('hook_quote', m.get('hook', ''))
+            m['payoff'] = m.get('payoff_quote', m.get('payoff', ''))
+            m['suggested_clip_text'] = m.get('narrative_arc', '')
+        return moments
     except Exception as e:
         print(f"  ⚠️ Full transcript analysis failed: {e}")
         return []
@@ -222,7 +250,7 @@ A great clip moment has:
 TRANSCRIPT SECTION:
 {chunk_text}
 
-Return a JSON array of moments found. If no moments qualify, return an empty array.
+Return the moments found as a "moments" array. If no moments qualify, return an empty array.
 For each moment:
 {{
     "start_timestamp": "[M:SS] from the transcript",
@@ -236,12 +264,37 @@ For each moment:
 
 Be SELECTIVE. Most transcript sections have 0-1 clip-worthy moments. Only include moments you'd bet could score 70+."""
 
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["moments"],
+        "properties": {
+            "moments": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "start_timestamp", "end_timestamp", "hook",
+                        "payoff", "why_viral", "estimated_score", "suggested_clip_text"
+                    ],
+                    "properties": {
+                        "start_timestamp": {"type": "string"},
+                        "end_timestamp": {"type": "string"},
+                        "hook": {"type": "string"},
+                        "payoff": {"type": "string"},
+                        "why_viral": {"type": "string"},
+                        "estimated_score": {"type": "integer"},
+                        "suggested_clip_text": {"type": "string"},
+                    },
+                },
+            },
+        },
+    }
+
     try:
-        response = call_claude(prompt, max_tokens=2000)
-        json_match = re.search(r'\[[\s\S]*\]', response)
-        if json_match:
-            return json.loads(json_match.group())
-        return []
+        response = call_claude(prompt, max_tokens=2000, output_schema=schema)
+        return json.loads(response).get("moments", [])
     except Exception as e:
         print(f"  ⚠️ Chunk {chunk_idx} failed: {e}")
         return []
@@ -271,7 +324,7 @@ Also provide:
 - Exact end quote (the last words before cutting)
 - Any adjustments to improve the score
 
-Return JSON:
+Return a JSON object:
 {{
     "total_score": 0-100,
     "hook_score": 0-25,
@@ -285,12 +338,31 @@ Return JSON:
     "reason": "one line summary"
 }}"""
 
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "total_score", "hook_score", "build_score", "payoff_score",
+            "clean_cut_score", "start_quote", "end_quote", "adjustments",
+            "would_you_post_this", "reason"
+        ],
+        "properties": {
+            "total_score": {"type": "integer"},
+            "hook_score": {"type": "integer"},
+            "build_score": {"type": "integer"},
+            "payoff_score": {"type": "integer"},
+            "clean_cut_score": {"type": "integer"},
+            "start_quote": {"type": "string"},
+            "end_quote": {"type": "string"},
+            "adjustments": {"type": "string"},
+            "would_you_post_this": {"type": "boolean"},
+            "reason": {"type": "string"},
+        },
+    }
+
     try:
-        response = call_claude(prompt, max_tokens=1500)
-        json_match = re.search(r'\{[\s\S]*\}', response)
-        if json_match:
-            return json.loads(json_match.group())
-        return {"total_score": 0, "reason": "Failed to parse"}
+        response = call_claude(prompt, max_tokens=1500, output_schema=schema)
+        return json.loads(response)
     except Exception as e:
         return {"total_score": 0, "reason": f"API error: {e}"}
 
