@@ -1,3 +1,8 @@
+---
+name: seo-ops
+description: AI-powered SEO operations — keyword intelligence scored by Impact x Confidence, Google Search Console striking-distance and quick-win keyword mining, competitor keyword-gap analysis, decaying-content alerts, and multi-source trend detection (Google Trends, Hacker News, Reddit, X, YouTube). Use for keyword research, content briefs, GSC optimization, finding trending topics, or diagnosing traffic drops.
+---
+
 # AI SEO Ops
 
 ## Preamble (runs on skill start)

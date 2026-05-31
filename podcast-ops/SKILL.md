@@ -1,5 +1,5 @@
 ---
-name: podcast-pipeline
+name: podcast-ops
 description: >-
   Podcast-to-Everything content pipeline. Takes a podcast RSS feed or raw
   transcript and generates a full cross-platform content calendar: short-form

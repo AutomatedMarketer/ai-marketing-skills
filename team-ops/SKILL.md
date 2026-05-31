@@ -1,3 +1,8 @@
+---
+name: team-ops
+description: AI-powered team performance analysis and meeting intelligence. Runs a structured "Elon Algorithm" 5-step team audit (question requirements, delete, simplify, accelerate, automate) with velocity/quality/independence/initiative scoring and A/B/C stack ranking, plus extracts decisions, action items (owner + deadline + priority), open questions, and follow-ups from meeting transcripts with optional HubSpot task push. Use to evaluate team performance against OKRs, find redundant roles, or process meeting notes into follow-ups.
+---
+
 # AI Team Ops
 
 ## Preamble (runs on skill start)

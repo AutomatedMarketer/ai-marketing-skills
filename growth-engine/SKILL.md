@@ -1,3 +1,8 @@
+---
+name: growth-engine
+description: Autonomous growth-experimentation framework for marketing channels. Creates A/B and multivariate experiments with hypotheses, logs data points, runs statistical analysis (bootstrap confidence intervals + Mann-Whitney U), auto-promotes winners (p < 0.05 and >=15% lift) to a living playbook, suggests next experiments, and generates weekly scorecards plus campaign pacing alerts. Use to create or score experiments, log results, check the playbook before making content, or monitor campaign health.
+---
+
 # Growth Engine
 
 ## Preamble (runs on skill start)
