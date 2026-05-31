@@ -245,7 +245,7 @@ export HUBSPOT_API_KEY="pat-..."
 
 # Optional: Override LLM settings
 export LLM_PROVIDER="anthropic"  # or "openai"
-export LLM_MODEL="claude-sonnet-4-20250514"      # or "gpt-4o"
+export LLM_MODEL="claude-sonnet-4-6"      # or "gpt-4o"
 ```
 
 ### 3. Test with dry runs

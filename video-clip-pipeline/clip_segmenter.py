@@ -48,7 +48,7 @@ def create_full_transcript_text(whisper_data):
 
 
 def analyze_with_claude(transcript_text, episode_title, anthropic_client,
-                        model="claude-haiku-4-5-20250514", max_segments=5, min_hook_strength=6):
+                        model="claude-haiku-4-5-20251001", max_segments=5, min_hook_strength=6):
     """Send transcript to Claude for segment analysis"""
 
     prompt = f"""You are analyzing a podcast transcript to identify the best clip-worthy segments.
@@ -113,7 +113,7 @@ Focus on segments with strong hooks, practical advice, and contrarian or surpris
 
 
 def process_single(transcript_file, output_file, episode_title, client,
-                    model="claude-haiku-4-5-20250514", max_segments=5, min_hook_strength=6):
+                    model="claude-haiku-4-5-20251001", max_segments=5, min_hook_strength=6):
     """Process a single transcript file."""
     print(f"\nProcessing: {transcript_file}")
 
@@ -158,7 +158,7 @@ def main():
     parser.add_argument("--output", help="Output path for segment JSON (single file mode)")
     parser.add_argument("--output-dir", help="Output directory for segment JSONs (batch mode)")
     parser.add_argument("--episode-title", help="Episode title (optional)")
-    parser.add_argument("--model", default="claude-haiku-4-5-20250514", help="Claude model to use")
+    parser.add_argument("--model", default="claude-haiku-4-5-20251001", help="Claude model to use")
     parser.add_argument("--max-segments", type=int, default=5, help="Max clips per episode (default: 5)")
     parser.add_argument("--min-hook-strength", type=int, default=6, help="Min hook score to include (default: 6)")
     args = parser.parse_args()
