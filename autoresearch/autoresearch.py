@@ -120,28 +120,27 @@ Rules:
 - Keep the core value proposition intact
 - Match the content type expectations for {element_name}
 
-Return ONLY a JSON array of {num_variants} strings. No explanation, no markdown formatting.
-Example: ["Variant 1 text", "Variant 2 text", ...]"""
+Return your answer as structured JSON: an object with a "variants" array of {num_variants} strings."""
 
     response = client.messages.create(
         model=model,
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
+        output_config={"format": {"type": "json_schema", "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["variants"],
+            "properties": {
+                "variants": {"type": "array", "items": {"type": "string"}},
+            },
+        }}},
     )
-    text = response.content[0].text.strip()
-    # Parse JSON from response
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
+    # Structured outputs guarantees schema-valid JSON — no fence-stripping/fallback needed.
     try:
-        variants = json.loads(text)
-        if isinstance(variants, list):
-            return [str(v) for v in variants[:num_variants]]
-    except json.JSONDecodeError:
-        pass
-    # Fallback: split by newlines
-    return [line.strip().strip('"').strip("- ") for line in text.split("\n") if line.strip()][:num_variants]
+        data = json.loads(response.content[0].text)
+        return [str(v) for v in data.get("variants", [])[:num_variants]]
+    except (json.JSONDecodeError, AttributeError):
+        return []
 
 
 def score_variants(client, variants: list[str], element_name: str,
@@ -170,40 +169,58 @@ Variants:
 For EACH variant, have each expert score it 0-100 on each dimension.
 Then compute the average score across all experts and dimensions.
 
-Return ONLY valid JSON (no markdown) in this exact format:
-[
-  {{
-    "variant_id": 1,
-    "text": "variant text",
-    "expert_scores": {{
-      "cmo": 72, "skeptical_founder": 68, "cro": 75, "copywriter": 70, "founder": 65
-    }},
-    "dimension_scores": {{
-      "{dimensions[0]}": 71, ...
-    }},
-    "avg_score": 70
-  }},
-  ...
-]"""
+Return your scores as structured JSON: an object with a "scores" array, one entry per variant in this shape:
+{{
+  "variant_id": 1,
+  "text": "variant text",
+  "expert_scores": {{ "cmo": 72, "skeptical_founder": 68, "cro": 75, "copywriter": 70, "founder": 65 }},
+  "dimension_scores": {{ "{dimensions[0]}": 71, ... }},
+  "avg_score": 70
+}}"""
+
+    # Build a strict schema from the known expert + dimension key sets.
+    expert_props = {e["id"]: {"type": "number"} for e in EXPERT_PANEL}
+    dim_props = {d: {"type": "number"} for d in dimensions}
+    score_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["scores"],
+        "properties": {
+            "scores": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["variant_id", "text", "expert_scores", "dimension_scores", "avg_score"],
+                    "properties": {
+                        "variant_id": {"type": "integer"},
+                        "text": {"type": "string"},
+                        "expert_scores": {
+                            "type": "object", "additionalProperties": False,
+                            "required": list(expert_props.keys()), "properties": expert_props,
+                        },
+                        "dimension_scores": {
+                            "type": "object", "additionalProperties": False,
+                            "required": list(dim_props.keys()), "properties": dim_props,
+                        },
+                        "avg_score": {"type": "number"},
+                    },
+                },
+            },
+        },
+    }
 
     response = client.messages.create(
         model=model,
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
+        output_config={"format": {"type": "json_schema", "schema": score_schema}},
     )
-    text = response.content[0].text.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
     try:
-        scores = json.loads(text)
-        if isinstance(scores, list):
-            return scores
-    except json.JSONDecodeError:
-        pass
-    # Fallback: return empty scores
-    return [{"variant_id": i+1, "text": v, "avg_score": 0} for i, v in enumerate(variants)]
+        return json.loads(response.content[0].text).get("scores", [])
+    except (json.JSONDecodeError, AttributeError):
+        # Fallback: return empty scores
+        return [{"variant_id": i+1, "text": v, "avg_score": 0} for i, v in enumerate(variants)]
 
 
 def run_optimization(client, element_name: str, current_text: str,
@@ -289,32 +306,41 @@ Each version should naturally integrate all winning elements while maintaining t
 Winning elements:
 {elements_desc}
 
-Return JSON array of 5 objects, each with all element keys and a brief rationale:
-[
-  {{
-    {', '.join(f'"{name}": "combined text"' for name in element_winners.keys())},
-    "rationale": "Why this combination works"
-  }},
-  ...
-]"""
+Return structured JSON: an object with a "combinations" array of 5 objects, each with all element keys and a brief rationale:
+{{
+  {', '.join(f'"{name}": "combined text"' for name in element_winners.keys())},
+  "rationale": "Why this combination works"
+}}"""
+
+    elem_props = {name: {"type": "string"} for name in element_winners.keys()}
+    combo_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["combinations"],
+        "properties": {
+            "combinations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": list(element_winners.keys()) + ["rationale"],
+                    "properties": {**elem_props, "rationale": {"type": "string"}},
+                },
+            },
+        },
+    }
 
     response = client.messages.create(
         model=model,
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
+        output_config={"format": {"type": "json_schema", "schema": combo_schema}},
     )
-    text = response.content[0].text.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
     try:
-        combinations = json.loads(text)
-        if isinstance(combinations, list):
-            return combinations[0] if combinations else {}
-    except json.JSONDecodeError:
-        pass
-    return {}
+        combinations = json.loads(response.content[0].text).get("combinations", [])
+        return combinations[0] if combinations else {}
+    except (json.JSONDecodeError, AttributeError):
+        return {}
 
 
 def write_report(name: str, content_type: str, element_results: dict, final_score: float, output_dir: str):
