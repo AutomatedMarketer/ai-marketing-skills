@@ -1,3 +1,8 @@
+---
+name: sales-pipeline
+description: Automates the full AI outbound sales pipeline — RB2B website-visitor identification, intent scoring, 5-layer suppression, Instantly campaign routing, dead-deal resurrection from HubSpot, trigger-signal prospecting (hires/funding/job posts), and self-learning ICP optimization from approve/reject patterns. Use when setting up automated outbound, running suppression before cold outreach, reviving closed-lost deals, or finding companies showing buying signals.
+---
+
 # AI Sales Pipeline
 
 ## Preamble (runs on skill start)

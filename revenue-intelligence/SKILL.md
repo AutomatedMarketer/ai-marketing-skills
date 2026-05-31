@@ -1,3 +1,8 @@
+---
+name: revenue-intelligence
+description: AI-powered revenue intelligence — extracts objections, buying signals, competitive mentions, and pricing discussions from Gong sales-call transcripts; maps content to closed deals with first-touch, linear, and time-decay attribution to prove ROI and find buyer-journey gaps; and generates unified client BI reports from GA4, HubSpot, Ahrefs, and Gong with anomaly detection. Use for call-insight extraction, content-to-revenue attribution, or multi-source client reporting.
+---
+
 # AI Revenue Intelligence
 
 ## Preamble (runs on skill start)

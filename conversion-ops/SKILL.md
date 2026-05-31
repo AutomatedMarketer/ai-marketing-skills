@@ -1,3 +1,8 @@
+---
+name: conversion-ops
+description: AI-powered conversion rate optimization — audits landing pages across 8 CRO dimensions (headline, CTA, social proof, urgency, trust, form friction, mobile, speed) with industry benchmarks and prioritized fixes, plus a survey-to-lead-magnet engine that clusters CSV survey responses by pain point and generates lead-magnet briefs. Use for landing-page audits, CRO scoring, batch URL analysis, or turning survey data into content strategy.
+---
+
 # AI Conversion Ops
 
 ## Preamble (runs on skill start)

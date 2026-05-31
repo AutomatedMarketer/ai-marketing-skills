@@ -1,3 +1,8 @@
+---
+name: sales-playbook
+description: Value-based pricing framework for moving deals from $10K/mo to $40-100K/mo. Generates pre-call briefings with competitive data, builds tiered S/M/L plus performance pricing packages, scores call transcripts against the value-pricing framework (0-100), and provides a library of 10 proven pricing patterns for sales training. Use when prepping for a sales call, building pricing proposals, analyzing call transcripts, or upselling existing deals.
+---
+
 # AI Sales Playbook — Value-Based Pricing & Deal Upselling
 
 ## Preamble (runs on skill start)
