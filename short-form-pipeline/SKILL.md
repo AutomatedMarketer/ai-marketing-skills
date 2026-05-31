@@ -1,8 +1,3 @@
----
-name: short-form-pipeline
-description: Extracts viral vertical short-form clips (TikTok, Reels, Shorts) from long-form YouTube videos. Handles yt-dlp download, Whisper word-level transcription, Claude AI segmentation with hook scoring, cut verification, FFmpeg cutting, layout-aware 16:9 to 9:16 vertical cropping with face detection, and TikTok-style word-highlighted caption burn-in. Use when turning a long video into ready-to-upload 30-60s vertical clips.
----
-
 # Short-Form Video Clip Pipeline — Skill
 
 ## Preamble (runs on skill start)

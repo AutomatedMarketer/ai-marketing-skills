@@ -1,8 +1,3 @@
----
-name: video-clip-pipeline
-description: AI pipeline that converts long-form YouTube episodes (podcasts, interviews, talks) into standalone landscape 16:9 highlight clips. Download (yt-dlp) → transcribe (Whisper) → AI segment (Claude, with optional 10-expert quality scoring) → verify sentence boundaries → cut (FFmpeg) → optional upload. Use for processing a YouTube back catalog into clips, finding the best standalone segments, or running a high-volume clip operation at ~$0.50-1.00 per episode.
----
-
 # Long-Form Video Clip Pipeline
 
 ## Preamble (runs on skill start)
