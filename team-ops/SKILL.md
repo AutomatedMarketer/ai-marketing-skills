@@ -58,7 +58,7 @@ All scripts use environment variables for LLM API access. Copy `.env.example` to
 
 - `HUBSPOT_API_KEY` — HubSpot private app token (for pushing meeting action items as tasks)
 - `LLM_PROVIDER` — `anthropic` (default) or `openai`
-- `LLM_MODEL` — Model name override (default: `claude-sonnet-4-20250514` or `gpt-4o`)
+- `LLM_MODEL` — Model name override (default: `claude-sonnet-4-6` or `gpt-4o`)
 
 ## Data Flow
 

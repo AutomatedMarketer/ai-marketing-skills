@@ -41,7 +41,7 @@ def _call_llm(prompt: str, system_prompt: str = "") -> str:
         # resp = requests.post(
         #     "https://api.anthropic.com/v1/messages",
         #     headers={"x-api-key": anthropic_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-        #     json={"model": "claude-sonnet-4-20250514", "max_tokens": 4096, "system": system_prompt, "messages": [{"role": "user", "content": prompt}]},
+        #     json={"model": "claude-sonnet-4-6", "max_tokens": 4096, "system": system_prompt, "messages": [{"role": "user", "content": prompt}]},
         # )
         # return resp.json()["content"][0]["text"]
         pass
